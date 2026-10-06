@@ -2,196 +2,760 @@ package org.example;
 
 import com.google.gson.Gson;
 
-import java.io.*;
-import java.lang.classfile.Label;
+import java.io.BufferedReader;
+import java.io.Console;
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.io.PrintWriter;
 import java.net.Socket;
 import java.util.InputMismatchException;
 import java.util.Scanner;
 
-
-
 public class Cliente {
+
     static Gson gson = new Gson();
+
     public static String tokenSessao = null;
 
-    static void main() throws IOException {
-        Scanner scanner = new Scanner(System.in);
+    // =========================================================
+    // MAIN
+    // =========================================================
+
+    public static void main(String[] args)
+            throws IOException {
+
+        Scanner scanner =
+                new Scanner(System.in);
 
         String IP;
         int PORTA;
 
-        while(true){
-            System.out.println("IP: ");
+        while (true) {
+
+            System.out.print("IP: ");
+
             IP = scanner.nextLine();
 
             try {
-                System.out.println("Porta: ");
+
+                System.out.print("Porta: ");
+
                 PORTA = scanner.nextInt();
+
                 scanner.nextLine();
+
                 break;
+
             } catch (InputMismatchException e) {
-                System.out.println("Dado inválido");
+
+                System.out.println(
+                        "Dado invalido"
+                );
+
+                scanner.nextLine();
             }
         }
 
-        try (Socket socket = new Socket(IP, PORTA)) {
+        System.out.println(
+                "Conectando ao servidor TCP " +
+                        IP + ":" + PORTA + "..."
+        );
 
-            PrintWriter out = new PrintWriter(socket.getOutputStream(), true);
-            BufferedReader in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
+        try (
+                Socket socket =
+                        new Socket(IP, PORTA);
+
+                PrintWriter out =
+                        new PrintWriter(
+                                socket.getOutputStream(),
+                                true
+                        );
+
+                BufferedReader in =
+                        new BufferedReader(
+                                new InputStreamReader(
+                                        socket.getInputStream()
+                                )
+                        )
+        ) {
+
             boolean rodando = true;
 
             while (rodando) {
-                if (tokenSessao != null) {
-                    while (true) {
-                        int opcao = MenuUsuario(scanner);
-                        String jsonEnvio;
 
-                        switch (opcao) {
-                            case 1:
-                                Mensagem readUser = Mensagem.lerUsuario(tokenSessao);
-                                jsonEnvio = gson.toJson(readUser);
-                                out.println(jsonEnvio);
-                                Mensagem resposta = gson.fromJson(in.readLine(), Mensagem.class);
+                if (tokenSessao == null) {
 
-                                System.out.println("Email: " + resposta.getEmail());
-                                System.out.println("Usuario: " + resposta.getUser());
+                    rodando =
+                            menuInicial(
+                                    scanner,
+                                    out,
+                                    in
+                            );
 
-                                break;
-                            case 0:
-                                System.out.println("Deslogando...");
-                                Mensagem logout = Mensagem.fazerLogout(tokenSessao);
-                                jsonEnvio = gson.toJson(logout);
-                                out.println(jsonEnvio);
-                                tokenSessao = null;
-                                break;
-                        }
-
-                        Mensagem resposta = gson.fromJson(in.readLine(), Mensagem.class);
-                        if(tokenSessao == null) break;
-                    }
                 } else {
-                    while (true) {
-                        int opcao = MenuInicial(scanner);
-                        String email;
-                        String usuario;
-                        String senha;
-                        String jsonEnvio;
 
-                        switch (opcao) {
-                            case 1:
-                                email = lerEmail(scanner);
-                                usuario = lerUser(scanner);
-                                senha = lerPassword(scanner);
-                                Mensagem registro = Mensagem.paraRegistro(email, usuario, senha);
-                                jsonEnvio = gson.toJson(registro);
-                                out.println(jsonEnvio);
-                                break;
-                            case 2:
-                                email = lerEmail(scanner);
-                                senha = lerPassword(scanner);
-                                Mensagem login = Mensagem.paraLogin(email, senha);
-                                jsonEnvio = gson.toJson(login);
-                                out.println(jsonEnvio);
-                                break;
-                            case 0:
-                                System.out.println("Finalizando conexão...");
-                                out.println("SAIR");
-                                break;
-                        }
-                        if (opcao == 0) {
-                            rodando = false;
-                            break;
-                        }
-
-                        Mensagem resposta = gson.fromJson(in.readLine(), Mensagem.class);
-                        if (resposta.getToken() != null) {
-                            tokenSessao = resposta.getToken();
-                            break;
-                        }
-                    }
+                    rodando =
+                            menuUsuario(
+                                    scanner,
+                                    out,
+                                    in
+                            );
                 }
             }
-        } catch (IOException e){
-            System.out.println("Erro ao conectar");
+
+        } catch (IOException e) {
+
+            System.out.println(
+                    "Erro ao conectar/comunicar " +
+                            "com o servidor: " +
+                            e.getMessage()
+            );
+
+        } finally {
+
+            scanner.close();
+        }
+    }
+
+    // =========================================================
+    // MENU INICIAL
+    // =========================================================
+
+    private static boolean menuInicial(
+            Scanner scanner,
+            PrintWriter out,
+            BufferedReader in
+    ) throws IOException {
+
+        int opcao =
+                MenuInicial(scanner);
+
+        switch (opcao) {
+
+            case 1 -> {
+
+                String email =
+                        lerEmail(scanner);
+
+                if (email == null) {
+                    break;
+                }
+
+                String usuario =
+                        lerUser(scanner);
+
+                if (usuario == null) {
+                    break;
+                }
+
+                String senha =
+                        lerPassword(scanner);
+
+                if (senha == null) {
+                    break;
+                }
+
+                Mensagem registro =
+                        Mensagem.paraRegistro(
+                                email,
+                                usuario,
+                                senha
+                        );
+
+                Mensagem resposta =
+                        enviar(
+                                registro,
+                                out,
+                                in
+                        );
+
+                mostrarResposta(
+                        resposta
+                );
+            }
+
+            case 2 -> {
+
+                String email =
+                        lerEmail(scanner);
+
+                if (email == null) {
+                    break;
+                }
+
+                String senha =
+                        lerPassword(scanner);
+
+                if (senha == null) {
+                    break;
+                }
+
+                Mensagem login =
+                        Mensagem.paraLogin(
+                                email,
+                                senha
+                        );
+
+                Mensagem resposta =
+                        enviar(
+                                login,
+                                out,
+                                in
+                        );
+
+                mostrarResposta(
+                        resposta
+                );
+
+                if ("login_response".equals(
+                        resposta.getOp()
+                ) &&
+                        "200".equals(
+                                resposta.getStatus()
+                        )) {
+
+                    tokenSessao =
+                            resposta.getToken();
+
+                    System.out.println(
+                            "Sessao iniciada."
+                    );
+                }
+            }
+
+            case 0 -> {
+
+                out.println("SAIR");
+
+                return false;
+            }
+
+            default -> {
+
+                System.out.println(
+                        "Opcao invalida."
+                );
+            }
         }
 
-        scanner.close();
+        return true;
     }
 
-    public static int MenuUsuario(Scanner scanner){
+    // =========================================================
+    // MENU DO USUARIO
+    // =========================================================
 
-        System.out.println("\n--- MENU ---");
-        System.out.println("1. Visualizar Cadastro");
-        System.out.println("2. Editar Cadastro");
-        System.out.println("3. Deletar cadastro");
-        System.out.println("0. Logout");
+    private static boolean menuUsuario(
+            Scanner scanner,
+            PrintWriter out,
+            BufferedReader in
+    ) throws IOException {
 
-        int op = scanner.nextInt();
-        scanner.nextLine();
+        int opcao =
+                MenuUsuario(scanner);
 
-        return op;
+        switch (opcao) {
+
+            // -------------------------------------------------
+            // READ USER
+            // -------------------------------------------------
+
+            case 1 -> {
+
+                Mensagem req =
+                        Mensagem.lerUsuario(
+                                tokenSessao
+                        );
+
+                Mensagem resposta =
+                        enviar(
+                                req,
+                                out,
+                                in
+                        );
+
+                mostrarResposta(
+                        resposta
+                );
+
+                if ("read_user_response".equals(
+                        resposta.getOp()
+                ) &&
+                        "200".equals(
+                                resposta.getStatus()
+                        )) {
+
+                    System.out.println(
+                            "Email: " +
+                                    resposta.getEmail()
+                    );
+
+                    System.out.println(
+                            "Usuario: " +
+                                    resposta.getUser()
+                    );
+
+                    System.out.println(
+                            "Role: " +
+                                    resposta.getRole()
+                    );
+
+                    System.out.println(
+                            "Criado em: " +
+                                    resposta.getCreatedAt()
+                    );
+                }
+            }
+
+            // -------------------------------------------------
+            // UPDATE USER
+            // -------------------------------------------------
+
+            case 2 -> {
+
+                System.out.println(
+                        "Deixe vazio o campo que " +
+                                "nao deseja alterar."
+                );
+
+                String usuario =
+                        lerUserParaUpdate(
+                                scanner
+                        );
+
+                String senha =
+                        lerPasswordParaUpdate(
+                                scanner
+                        );
+
+                Mensagem req =
+                        Mensagem.atualizarUsuario(
+                                tokenSessao,
+                                usuario,
+                                senha
+                        );
+
+                Mensagem resposta =
+                        enviar(
+                                req,
+                                out,
+                                in
+                        );
+
+                mostrarResposta(
+                        resposta
+                );
+            }
+
+            // -------------------------------------------------
+            // DELETE USER
+            // -------------------------------------------------
+
+            case 3 -> {
+
+                System.out.println();
+                System.out.println(
+                        "ATENCAO: esta operacao " +
+                                "remove definitivamente o cadastro."
+                );
+
+                String senha =
+                        lerPassword(scanner);
+
+                if (senha == null) {
+                    break;
+                }
+
+                Mensagem req =
+                        Mensagem.deletarUsuario(
+                                tokenSessao,
+                                senha
+                        );
+
+                Mensagem resposta =
+                        enviar(
+                                req,
+                                out,
+                                in
+                        );
+
+                mostrarResposta(
+                        resposta
+                );
+
+                if ("delete_user_response".equals(
+                        resposta.getOp()
+                ) &&
+                        "200".equals(
+                                resposta.getStatus()
+                        )) {
+
+                    tokenSessao = null;
+
+                    System.out.println(
+                            "Cadastro removido com sucesso."
+                    );
+                }
+            }
+
+            // -------------------------------------------------
+            // LOGOUT
+            // -------------------------------------------------
+
+            case 0 -> {
+
+                Mensagem req =
+                        Mensagem.fazerLogout(
+                                tokenSessao
+                        );
+
+                Mensagem resposta =
+                        enviar(
+                                req,
+                                out,
+                                in
+                        );
+
+                mostrarResposta(
+                        resposta
+                );
+
+                tokenSessao = null;
+            }
+
+            default -> {
+
+                System.out.println(
+                        "Opcao invalida."
+                );
+            }
+        }
+
+        return true;
     }
 
-    public static int MenuInicial(Scanner scanner){
+    // =========================================================
+    // ENVIO / RECEBIMENTO
+    // =========================================================
 
-        System.out.println("\n--- MENU ---");
-        System.out.println("1. Registrar");
-        System.out.println("2. Login");
-        System.out.println("0. Sair");
-        System.out.print("Escolha uma opção: ");
+    private static Mensagem enviar(
+            Mensagem mensagem,
+            PrintWriter out,
+            BufferedReader in
+    ) throws IOException {
 
-        int op = scanner.nextInt();
-        scanner.nextLine();
+        /*
+         * Uma requisicao.
+         */
+        out.println(
+                gson.toJson(mensagem)
+        );
 
-        return op;
+        /*
+         * Exatamente uma resposta.
+         */
+        String linha =
+                in.readLine();
+
+        if (linha == null) {
+
+            throw new IOException(
+                    "Servidor encerrou a conexao."
+            );
+        }
+
+        return gson.fromJson(
+                linha,
+                Mensagem.class
+        );
     }
 
-    public static String lerEmail(Scanner scanner){
+    private static void mostrarResposta(
+            Mensagem resposta) {
 
-        System.out.print("Digite o email: ");
-        String email = scanner.nextLine();
+        if (resposta == null) {
 
-        // Validação usando o Regex do seu projeto
-        if (!email.matches("^[a-z0-9.]+@[a-z0-9]+(\\.[a-z]+){1,2}$")) {
-            System.out.println("Email inválido!");
+            System.out.println(
+                    "Resposta invalida do servidor."
+            );
+
+            return;
+        }
+
+        System.out.println(
+                "[" +
+                        resposta.getStatus() +
+                        "] " +
+                        resposta.getMessage()
+        );
+    }
+
+    // =========================================================
+    // MENUS
+    // =========================================================
+
+    public static int MenuUsuario(
+            Scanner scanner) {
+
+        System.out.println();
+        System.out.println("--- MENU ---");
+        System.out.println(
+                "1. Visualizar Cadastro"
+        );
+        System.out.println(
+                "2. Editar Cadastro"
+        );
+        System.out.println(
+                "3. Deletar cadastro"
+        );
+        System.out.println(
+                "0. Logout"
+        );
+
+        System.out.print(
+                "Escolha uma opcao: "
+        );
+
+        try {
+
+            int op =
+                    scanner.nextInt();
+
+            scanner.nextLine();
+
+            return op;
+
+        } catch (InputMismatchException e) {
+
+            scanner.nextLine();
+
+            return -1;
+        }
+    }
+
+    public static int MenuInicial(
+            Scanner scanner) {
+
+        System.out.println();
+        System.out.println("--- MENU ---");
+        System.out.println(
+                "1. Registrar"
+        );
+        System.out.println(
+                "2. Login"
+        );
+        System.out.println(
+                "0. Sair"
+        );
+
+        System.out.print(
+                "Escolha uma opcao: "
+        );
+
+        try {
+
+            int op =
+                    scanner.nextInt();
+
+            scanner.nextLine();
+
+            return op;
+
+        } catch (InputMismatchException e) {
+
+            scanner.nextLine();
+
+            return -1;
+        }
+    }
+
+    // =========================================================
+    // LEITURA / VALIDAÇÃO
+    // =========================================================
+
+    public static String lerEmail(
+            Scanner scanner) {
+
+        System.out.print(
+                "Digite o email: "
+        );
+
+        String email =
+                scanner.nextLine().trim();
+
+        if (!validarEmail(email)) {
+
+            System.out.println(
+                    "Email invalido!"
+            );
+
             return null;
         }
 
         return email;
     }
 
-    public static String lerUser(Scanner scanner){
+    public static String lerUser(
+            Scanner scanner) {
 
-        System.out.print("Digite o usuário: ");
-        String usuario = scanner.nextLine();
+        System.out.print(
+                "Digite o usuario: "
+        );
 
-        if (!usuario.matches("^[a-z]{1,30}$")) {
-            System.out.println("Email inválido!");
+        String usuario =
+                scanner.nextLine().trim();
+
+        if (!validarUser(usuario)) {
+
+            System.out.println(
+                    "Usuario invalido!"
+            );
+
             return null;
         }
 
         return usuario;
     }
 
-    public static String lerPassword(Scanner scanner) {
-        Console console = System.console();
+    public static String lerUserParaUpdate(
+            Scanner scanner) {
 
-        String password;
-        if (console != null) {
-            // Esconde os caracteres digitados no terminal
-            char[] passwordChars = console.readPassword("Digite a senha: ");
-            password = new String(passwordChars);
-        } else {
-            // Fallback caso esteja rodando dentro de uma IDE (Eclipse, IntelliJ, NetBeans)
-            System.out.print("Digite a senha: ");
-            password = scanner.nextLine();
+        System.out.print(
+                "Novo usuario " +
+                        "(Enter para manter): "
+        );
+
+        String usuario =
+                scanner.nextLine().trim();
+
+        if (usuario.isEmpty()) {
+
+            return "";
         }
 
-        if (!password.matches("^[A-Za-z0-9]{1,20}$")) {
-            System.out.println("Senha inválida! Use apenas letras e números.");
+        if (!validarUser(usuario)) {
+
+            System.out.println(
+                    "Usuario invalido!"
+            );
+
+            return "";
+        }
+
+        return usuario;
+    }
+
+    public static String lerPassword(
+            Scanner scanner) {
+
+        Console console =
+                System.console();
+
+        String password;
+
+        if (console != null) {
+
+            char[] passwordChars =
+                    console.readPassword(
+                            "Digite a senha: "
+                    );
+
+            password =
+                    new String(passwordChars);
+
+        } else {
+
+            System.out.print(
+                    "Digite a senha: "
+            );
+
+            password =
+                    scanner.nextLine();
+        }
+
+        if (!validarPassword(
+                password
+        )) {
+
+            System.out.println(
+                    "Senha invalida! " +
+                            "Use apenas letras e numeros."
+            );
+
             return null;
         }
 
         return password;
+    }
+
+    public static String lerPasswordParaUpdate(
+            Scanner scanner) {
+
+        System.out.print(
+                "Nova senha " +
+                        "(Enter para manter): "
+        );
+
+        String password =
+                scanner.nextLine();
+
+        if (password.isEmpty()) {
+
+            return "";
+        }
+
+        if (!validarPassword(
+                password
+        )) {
+
+            System.out.println(
+                    "Senha invalida! " +
+                            "Use apenas letras e numeros."
+            );
+
+            return "";
+        }
+
+        return password;
+    }
+
+    // =========================================================
+    // REGEX
+    // =========================================================
+
+    public static boolean validarEmail(
+            String email) {
+
+        return email != null &&
+                email.matches(
+                        "^[a-z0-9.]+@[a-z0-9]+(\\.[a-z]+){1,2}$"
+                );
+    }
+
+    public static boolean validarUser(
+            String user) {
+
+        return user != null &&
+                user.matches(
+                        "^[a-z]{1,30}$"
+                );
+    }
+
+    public static boolean validarPassword(
+            String password) {
+
+        return password != null &&
+                password.matches(
+                        "^[A-Za-z0-9]{1,20}$"
+                );
+    }
+
+    public static boolean validarToken(
+            String token) {
+
+        return token != null &&
+                token.matches(
+                        "^[a-f0-9]{64}$"
+                );
     }
 }
